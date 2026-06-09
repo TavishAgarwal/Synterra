@@ -1,5 +1,10 @@
 # SYNTHETIC NATION — VALIDATION METHODOLOGY
 
+> Current disclosure: the repository bundles frozen illustrative benchmark rows
+> and an executable arithmetic reproduction script. It does not bundle independently
+> licensed raw DMRC or survey microdata. The reported calculations are reproducible;
+> the underlying observations require independent sourcing before scientific publication.
+
 ## What Type of Validation This Is
 
 HINDCAST VALIDATION — scientifically accepted method of establishing model
@@ -44,7 +49,7 @@ on the actual data. Synthetic Nation used only pre-opening data.
 - Citizen sentiment simulation predicted: 23% trust collapse in NTA among
   student-age agents
 - Actual post-NEET survey data: 21.4% trust decline
-- Error margin: 1.6 percentage points
+- Absolute error: 1.6 percentage points (7.5% relative to the observed decline)
 
 ## Confidence Grading System
 

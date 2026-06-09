@@ -1,0 +1,3 @@
+case_id,title,predicted,actual,naive_baseline,unit,source_note
+delhi_metro_phase4,Delhi Metro Phase 4 ridership increase,340000,318000,388000,passengers/day,Illustrative frozen benchmark; replace with independently sourced raw series before external publication
+neet_2024_trust,NEET 2024 trust decline,23.0,21.4,30.0,percentage points,Illustrative frozen benchmark; replace with independently sourced survey microdata before external publication

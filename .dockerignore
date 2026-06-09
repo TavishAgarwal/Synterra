@@ -1,0 +1,6 @@
+.git
+.pytest_cache
+frontend/dist
+frontend/node_modules
+**/__pycache__
+*.pyc

@@ -1,163 +1,157 @@
 # SYNTHETIC NATION
 
-> Autonomous policy simulation engine with 100,000+ AI citizens.  
-> Test policies before testing on real people.
+> Policy stress-testing platform powered by 10,000 autonomous AI citizens.
+> Test government decisions before real people pay for them.
 
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
-![Tailwind](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![City Selector](screenshots/01-city-selector.png)
 
----
+## What It Does
 
-## Overview
+Synthetic Nation lets policymakers stress-test a decision on a simulated city
+before applying it to real people.
 
-Synthetic Nation is a policy simulation platform that models the behavior of autonomous AI citizens across Indian metropolitan cities. It enables policymakers to stress-test infrastructure, economic, and social policies in a risk-free synthetic environment before real-world deployment.
+Pick a city, describe a policy, answer a few implementation questions, then
+watch a seeded Python simulation stream agent decisions, alerts, scores, and
+recommendations into a React dashboard.
 
-### Key Features
+This is a stress-test tool, not a prediction oracle. Validation limits and data
+gaps are shown explicitly in the product and docs.
 
-- **Mission Control** — Real-time dashboard with global sensor grid, agent metrics, decision logs, and threat monitoring
-- **Geo-Synthesis** — Interactive city node explorer with live telemetry feeds and dark-tiled maps
-- **Policy Simulation** — Configure temporal resolution, vector variance, and natural language policy directives against target cities
-- **Hindcast Validation** — Empirical divergence analysis with historical accuracy benchmarking (94.2% global accuracy)
+## Screenshots
 
-### Cities Monitored
+| City Selector | Policy Input |
+|---|---|
+| ![City Selector](screenshots/01-city-selector.png) | ![Policy Input](screenshots/02-policy-input.png) |
 
-| City | Population | Status | Threat Level |
-|------|-----------|--------|-------------|
-| Delhi | 32.9M | `SECURE` | LOW |
-| Mumbai | 21.3M | `MONITORING` | ELEVATED |
-| Kolkata | 15.1M | `COMPROMISED` | CRITICAL |
-| Bengaluru | 13.2M | `SECURE` | LOW |
-| Chennai | 11.2M | `MONITORING` | ELEVATED |
-| Hyderabad | 10.5M | `SECURE` | LOW |
+| Simulation Running | Results |
+|---|---|
+| ![Simulation](screenshots/03-simulation-running.png) | ![Results](screenshots/04-results.png) |
 
----
+## What Runs Today
+
+- Real discrete-time `SimulationEngine` with seeded Tier 1 citizen populations
+- Data-driven profiles for Delhi, Mumbai, Bengaluru, Chennai, Hyderabad, and Kolkata
+- Scale-free social-network propagation and 90-day in-run memory
+- FastAPI SSE streaming from the Python engine to the frontend
+- Autonomous Government Agent threshold monitoring
+- Computed policy score, impact cards, and three-tier recommendations
+- Reproducible fixed-seed and varied-seed tests
+- Bounded API inputs, explicit CORS origins, rate limiting, and bounded caching
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Framework | React 18 + TypeScript |
-| Build Tool | Vite 8 |
-| Styling | Tailwind CSS 4 + CSS Custom Properties |
-| Charts | Recharts |
-| Maps | React Leaflet + Stadia Dark Tiles |
-| Animations | Framer Motion |
-| Routing | React Router v6 |
-| Typography | DM Serif Display, PT Serif, Bitcount Single |
+|---|---|
+| Frontend | React, TypeScript, Vite |
+| Backend | FastAPI, Python 3.11 |
+| Agent Engine | NumPy, NetworkX, SciPy |
+| LLM Modules | Optional OpenAI/Ollama-backed agents; core demo runs offline |
+| Validation | Reproducible hindcast arithmetic scripts |
 
----
-
-## Getting Started
+## Local Setup
 
 ### Prerequisites
 
-- Node.js 18+
-- npm 9+
+- Node.js 20.19.0+ (`nvm use` reads `.nvmrc`)
+- npm 10+
+- Python 3.11+
 
-### Installation
+### Frontend
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/SyntheticNation.git
-cd SyntheticNation
-
-# Install frontend dependencies
 cd frontend
+cp .env.example .env.local
 npm install
-
-# Start the development server
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173/`.
+The default Vite URL is `http://localhost:5173`.
 
-### Build for Production
+### Backend
 
 ```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+For local development without real LLM keys, leave the key values as placeholders.
+The central demo path uses deterministic offline logic.
+
+### Containerized Run
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:8080`.
+
+## Environment Variables
+
+See `frontend/.env.example` and `backend/.env.example` for all required values.
+Never commit `.env`, `.env.local`, or provider API keys.
+
+Frontend code calls only the Synthetic Nation backend. LLM provider keys belong
+only in backend runtime environment variables.
+
+## Verification
+
+```bash
+python3 -m pytest -q
+python3 -m backend.validation.reproduce
+python3 -m backend.benchmarks.engine_benchmark --agents 10000 --days 30
 cd frontend
+npm run lint
 npm run build
+npm audit
 ```
 
-Output will be in `frontend/dist/`.
+## API
 
----
+- `GET /api/health`
+- `GET /api/cities`
+- `POST /api/parse-policy`
+- `POST /api/simulate`
+- `GET /api/simulations/{simulation_id}`
+- `POST /api/counterfactual`
+- `GET /api/validation`
+- `GET /api/validation-reproduction`
 
-## Project Structure
+## Architecture
 
-```
-SyntheticNation/
-├── docs/                       # Project documentation
-│   ├── AGENT_SPEC.md           # AI agent architecture spec
-│   ├── ARCHITECTURE.md         # System architecture overview
-│   ├── CITY_PROFILES.md        # Indian city data profiles
-│   ├── CREDIBILITY_SHIELD.md   # Validation methodology
-│   ├── DATA_SOURCES.md         # Data source references
-│   ├── MVP_SCOPE.md            # MVP scope definition
-│   ├── PROJECT_BRIEF.md        # Project brief
-│   └── VALIDATION.md           # Validation framework
-├── frontend/                   # React frontend application
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/         # AppShell, TopNav, SideNav, StatusBar
-│   │   │   └── ui/             # GlassPanel, DataChip, TerminalInput, etc.
-│   │   ├── data/               # Mock data (cities, agents, validation)
-│   │   ├── hooks/              # Custom hooks (typewriter, countUp, etc.)
-│   │   ├── pages/              # Page components (4 screens)
-│   │   └── styles/             # Global CSS + font declarations
-│   ├── package.json
-│   └── vite.config.ts
-├── backend/                    # Backend API (Python)
-├── .gitignore
-└── README.md
+```text
+React policy flow
+  -> POST /api/simulate
+  -> policy parser
+  -> city/zone config loader
+  -> seeded SimulationEngine
+  -> Tier 1 decisions + social propagation + Tier 2/3 reasoning
+  -> Government Agent monitoring
+  -> SSE day updates
+  -> computed score, recommendations, and exportable report
 ```
 
----
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/VALIDATION.md](docs/VALIDATION.md), and
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
-## Design System
+## Known Limits
 
-The UI follows a **terminal surveillance aesthetic** with sharp corners, glass panels, and a dark void background.
+- The live path is capped at 10,000 agents per run.
+- Tier 2 and Tier 3 behavior inside the central engine uses deterministic
+  offline logic by default.
+- Bundled validation rows reproduce arithmetic and baseline comparison; raw
+  independently licensed source datasets are not included.
+- Simulation state, cache, and rate limits are process-local.
 
-### Color Palette
+## FAR AWAY 2026
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--color-void` | `#0a0c10` | Page background |
-| `--color-primary` | `#00e5ff` | Accent, active states, data highlights |
-| `--color-alert` | `#ff0055` | Critical threats, errors |
-| `--color-warn` | `#ffb347` | Warnings, elevated states |
-| `--color-success` | `#1aad6e` | Stable, online, positive deltas |
-
-### Typography
-
-| Font | Usage |
-|------|-------|
-| DM Serif Display | Headlines, section titles |
-| PT Serif | Body text, descriptions |
-| Bitcount Single / Courier New | Numbers, labels, metrics, terminal text |
-
-### Key Design Rules
-
-- `border-radius: 0` on everything (sharp corners)
-- Glass panels: `backdrop-filter: blur(20px)` with primary border glow
-- `cursor: crosshair` on all interactive elements
-- All status text in `[BRACKETS]` format
-- Chamfered corners (clip-path) on CTA buttons only
-
----
-
-## Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start Vite dev server with HMR |
-| `npm run build` | TypeScript check + production build |
-| `npm run lint` | Run ESLint |
-| `npm run preview` | Preview production build locally |
-
----
+Submitted to FAR AWAY 2026, India's Biggest International Hackathon.
+Theme: Agentic & Autonomous Systems.
 
 ## License
 
-This project is proprietary. All rights reserved.
+Proprietary. All rights reserved. Copyright 2026 Tavish Agarwal.

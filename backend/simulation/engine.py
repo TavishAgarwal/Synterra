@@ -630,7 +630,19 @@ class SimulationEngine:
         idx = 0
 
         for agent_type, config in tier2_types.items():
-            count = config if isinstance(config, int) else config.get("count", 1)
+            if agent_type == "data_source":
+                continue
+            if isinstance(config, int):
+                count = config
+            elif isinstance(config, dict):
+                count = int(config.get("count", 1))
+            else:
+                logger.warning(
+                    "Ignoring invalid Tier 2 config for %s: %r",
+                    agent_type,
+                    config,
+                )
+                continue
             for _ in range(count):
                 agents.append({
                     "agent_id": f"T2_{agent_type[:6].upper()}_{idx:03d}",
@@ -686,13 +698,14 @@ class SimulationEngine:
         ca_threshold = agent.get("collective_action_threshold", 0.45)
 
         # ── Compute fare impact ──
+        fare_change_ratio = effective_fare_change / 100.0
         if income > 0:
             daily_income = income / 26  # ~26 working days
-            daily_fare_impact = daily_income * effective_fare_change * fare_sensitivity
+            daily_fare_impact = daily_income * fare_change_ratio * fare_sensitivity
             impact_ratio = daily_fare_impact / daily_income if daily_income > 0 else 0
         else:
             # Students, homemakers — use family budget proxy
-            impact_ratio = effective_fare_change * 0.5
+            impact_ratio = fare_change_ratio * 0.5
 
         # ── Sentiment: negative when impact is high ──
         raw_sentiment = -impact_ratio * loss_aversion * 2.0
@@ -731,7 +744,7 @@ class SimulationEngine:
                 action = "reduce_nonessential_transit"
         elif archetype == "gig_economy_worker":
             # Bidirectional: may benefit from fare hikes (cab demand)
-            if effective_fare_change > 0:
+            if fare_change_ratio > 0:
                 action = "income_increase"  # Windfall from mode shift
                 sentiment = abs(sentiment) * 0.5  # Positive sentiment
         elif archetype in ("student", "exam_aspirant"):

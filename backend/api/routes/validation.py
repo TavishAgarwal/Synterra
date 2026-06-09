@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from backend.api.demo_data import VALIDATION_CASES, CITIES
+from backend.validation.reproduce import reproduce
 
 router = APIRouter()
 
@@ -34,7 +35,18 @@ async def get_all_validations():
             "the prediction before the outcome is known. We are actively seeking this partnership "
             "with NITI Aayog and IIT research groups."
         ),
+        "disclosure": (
+            "The bundled benchmark rows reproduce the reported arithmetic but do not "
+            "include independently licensed third-party raw data. Replace them before "
+            "external scientific publication."
+        ),
     }
+
+
+@router.get("/validation-reproduction")
+async def reproduce_validations():
+    """Return calculations generated from the bundled frozen benchmark rows."""
+    return {"cases": reproduce()}
 
 
 @router.get("/validation/{city_id}/{scenario_id}")

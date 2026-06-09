@@ -3,8 +3,9 @@ import type { DecisionEntry } from '../data/mockAgents';
 import { generateDecisionFeed } from '../data/mockAgents';
 
 export function useTerminalStream(maxEntries: number = 50) {
-  const allEntries = useRef(generateDecisionFeed());
-  const [entries, setEntries] = useState<DecisionEntry[]>(() => allEntries.current.slice(0, 6));
+  const [initialEntries] = useState(generateDecisionFeed);
+  const allEntries = useRef(initialEntries);
+  const [entries, setEntries] = useState<DecisionEntry[]>(() => initialEntries.slice(0, 6));
   const indexRef = useRef(6);
 
   useEffect(() => {

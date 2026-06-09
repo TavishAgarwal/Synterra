@@ -6,17 +6,18 @@ Parses natural language policy input into structured parameters.
 
 from __future__ import annotations
 
-import asyncio
+import logging
 
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class PolicyInput(BaseModel):
-    policy_text: str
-    city_id: str = "DEL"
+    policy_text: str = Field(min_length=10, max_length=2_000)
+    city_id: str = Field(default="DEL", pattern="^(DEL|MUM|BLR|CHN|HYD|KOL)$")
 
 
 @router.post("/parse-policy")
@@ -40,13 +41,9 @@ async def parse_policy(request: PolicyInput):
             },
             "interpretation": _build_interpretation(result, request.city_id),
         }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "parsed": None,
-            "interpretation": None,
-        }
+    except Exception as exc:
+        logger.exception("Policy parsing failed: %s", exc)
+        raise HTTPException(status_code=422, detail="Policy text could not be parsed") from exc
 
 
 def _build_interpretation(result, city_id: str) -> str:

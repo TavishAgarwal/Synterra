@@ -8,11 +8,9 @@ export function useTypewriter(text: string, speed: number = 40, startDelay: numb
 
   useEffect(() => {
     indexRef.current = 0;
-    setDisplayText('');
-    setIsComplete(false);
-    setIsStarted(false);
-
     const startTimer = setTimeout(() => {
+      setDisplayText('');
+      setIsComplete(false);
       setIsStarted(true);
     }, startDelay);
 

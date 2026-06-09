@@ -26,7 +26,6 @@ export const SegmentBar: React.FC<SegmentBarProps> = ({
   const fillColor = variantColorMap[variant];
 
   useEffect(() => {
-    setAnimatedCount(0);
     let current = 0;
     const interval = setInterval(() => {
       current++;
