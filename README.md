@@ -56,27 +56,56 @@ gaps are shown explicitly in the product and docs.
 - npm 10+
 - Python 3.11+
 
-### Frontend
+### Step-by-Step Instructions
+
+#### 1. Setup and Start the Backend
+
+Open a terminal at the project root folder.
+
+**On macOS / Linux:**
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Start backend server
+python3 -m backend.api.main
+```
+
+**On Windows:**
+```powershell
+# Create virtual environment
+python -m venv venv
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Start backend server
+python -m backend.api.main
+```
+
+The backend server will start at `http://localhost:8000`.
+
+#### 2. Setup and Start the Frontend
+
+Open a second terminal at the project root folder.
 
 ```bash
+# Navigate to the frontend directory
 cd frontend
-cp .env.example .env.local
+
+# Install packages
 npm install
+
+# Start Vite dev server
 npm run dev
 ```
 
-The default Vite URL is `http://localhost:5173`.
-
-### Backend
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
-```
+Open `http://localhost:5173` in your browser.
 
 For local development without real LLM keys, leave the key values as placeholders.
 The central demo path uses deterministic offline logic.
