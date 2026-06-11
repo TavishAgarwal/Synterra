@@ -94,6 +94,20 @@ def test_simulation_api_streams_computed_engine_results():
     ]
     assert events[1]["computed"] is True
     assert events[1]["metrics"]["total_agents"] == 120
+    
+    # Assert zone metrics are present in day update
+    assert "zones" in events[1]["metrics"]
+    assert len(events[1]["metrics"]["zones"]) > 0
+    assert "zone_id" in events[1]["metrics"]["zones"][0]
+    assert "metrics" in events[1]["metrics"]["zones"][0]
+    
+    # Assert zone summary and timeline are present in completion event
+    summary = events[-1]["summary"]
+    assert "zones" in summary
+    assert "zone_timeline" in summary
+    assert len(summary["zones"]) > 0
+    assert "DEL_SHAHDARA" in summary["zone_timeline"]
+    assert len(summary["zone_timeline"]["DEL_SHAHDARA"]) == 2
 
 
 def test_simulation_api_accepts_city_name_aliases():

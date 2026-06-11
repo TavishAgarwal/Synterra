@@ -221,8 +221,19 @@ class SimulationEngine:
             zone_id, zone_ctx.city_id, population_size, time_horizon_days,
         )
 
+        # Load all zones for this city
+        city_id = zone_ctx.city_id
+        zone_ids = self._config_loader.list_zones(city_id)
+        city_zones = []
+        for zid in zone_ids:
+            try:
+                z_ctx = await self._config_loader.load_zone_context(zid)
+                city_zones.append(z_ctx)
+            except Exception as e:
+                logger.error("Failed to load zone context for %s: %s", zid, e)
+
         # ── Spawn Tier 1 population ──
-        tier1_agents = self._spawn_tier1_population(zone_ctx, population_size, rng)
+        tier1_agents = self._spawn_tier1_population(zone_ctx, population_size, rng, zone_ids=zone_ids)
         logger.info("Spawned %d Tier 1 agents", len(tier1_agents))
 
         # ── Build social network ──
@@ -364,7 +375,7 @@ class SimulationEngine:
 
             # ─── Step 9: Compute day metrics ───
             day_metrics = self._compute_day_metrics(
-                tier1_agents, tier1_decisions, day, zone_ctx
+                tier1_agents, tier1_decisions, day, zone_ctx, city_zones=city_zones
             )
 
             # ─── Step 10: Government agent monitoring ───
@@ -401,8 +412,12 @@ class SimulationEngine:
         zone_ctx: Any,
         population_size: int,
         rng: random.Random,
+        zone_ids: list[str] | None = None,
     ) -> dict[str, dict[str, Any]]:
         """Spawn Tier 1 agents according to zone archetype weights."""
+        if not zone_ids:
+            zone_ids = [zone_ctx.zone_id]
+
         archetype_weights = zone_ctx.tier1_agent_archetype_weights
         if not archetype_weights:
             archetype_weights = {"formal_sector_employee": 1.0}
@@ -428,6 +443,7 @@ class SimulationEngine:
                 agents[agent_id] = self._create_tier1_agent(
                     agent_id, archetype, zone_ctx, rng
                 )
+                agents[agent_id]["zone_id"] = zone_ids[agent_idx % len(zone_ids)]
                 agent_idx += 1
 
                 if agent_idx >= population_size:
@@ -909,6 +925,7 @@ class SimulationEngine:
         decisions: dict[str, str],
         day: int,
         zone_ctx: Any,
+        city_zones: list[Any] | None = None,
     ) -> dict[str, Any]:
         """Compute aggregate metrics for a single simulation day."""
         total = max(len(agents), 1)
@@ -970,7 +987,7 @@ class SimulationEngine:
                 footfall_change = -(consol_count / max(len(homemaker_agents), 1))
                 informal_cascade[node_id] = footfall_change
 
-        return {
+        res = {
             "day": day,
             "protest_probability": protest_probability,
             "modal_shift_pct": sum(modal_shift.values()) / max(len(modal_shift), 1),
@@ -981,6 +998,41 @@ class SimulationEngine:
             "action_distribution": dict(action_counts),
             "total_agents": total,
         }
+
+        if city_zones:
+            zone_metrics_list = []
+            for z in city_zones:
+                zone_agents = [a for a in agents.values() if a.get("zone_id") == z.zone_id]
+                z_total = len(zone_agents)
+                if z_total > 0:
+                    z_sentiment = sum(a.get("sentiment", 0.0) for a in zone_agents) / z_total
+                    z_protests = sum(1 for a in zone_agents if decisions.get(a["agent_id"]) == "protest_join")
+                    z_protest_prob = z_protests / z_total
+                    z_shifts = sum(1 for a in zone_agents if decisions.get(a["agent_id"]) == "mode_switch")
+                    z_shift_pct = z_shifts / z_total
+                else:
+                    z_sentiment = 0.0
+                    z_protest_prob = 0.0
+                    z_shift_pct = 0.0
+
+                zone_metrics_list.append({
+                    "zone_id": z.zone_id,
+                    "zone_name": z.zone_name,
+                    "centroid_lat": z.geography.get("centroid_lat", 0.0),
+                    "centroid_lng": z.geography.get("centroid_lng", 0.0),
+                    "metrics": {
+                        "sentiment": round(z_sentiment, 4),
+                        "protest_probability": round(z_protest_prob, 4),
+                        "modal_shift_pct": round(z_shift_pct, 4),
+                    },
+                    "total_agents": z_total,
+                    "demographics": z.demographics,
+                    "income_profile": z.income_profile,
+                    "commute_profile": z.commute_profile,
+                })
+            res["zones"] = zone_metrics_list
+
+        return res
 
     # ── Aggregate Metrics ─────────────────────────────────
     def compute_metrics(

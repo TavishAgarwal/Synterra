@@ -5,6 +5,31 @@ import type {
 } from '../data/simulationData';
 import { API_BASE } from './config';
 
+export interface ZoneMetrics {
+  zone_id: string;
+  zone_name: string;
+  centroid_lat: number;
+  centroid_lng: number;
+  metrics: {
+    sentiment: number;
+    protest_probability: number;
+    modal_shift_pct: number;
+  };
+  total_agents: number;
+  demographics?: Record<string, any>;
+  income_profile?: Record<string, any>;
+  commute_profile?: Record<string, any>;
+}
+
+export interface ZoneTimelineEntry {
+  day: number;
+  sentiment: number;
+  protest_probability: number;
+  modal_shift_pct: number;
+}
+
+export type ZoneTimeline = Record<string, ZoneTimelineEntry[]>;
+
 export interface SimulationMetrics {
   day: number;
   protest_probability: number;
@@ -13,6 +38,7 @@ export interface SimulationMetrics {
   total_agents: number;
   action_distribution: Record<string, number>;
   modal_shift_by_archetype: Record<string, number>;
+  zones?: ZoneMetrics[];
 }
 
 export interface SimulationSummary {
@@ -28,6 +54,8 @@ export interface SimulationSummary {
     revisedScore: number;
     goldScore: number;
   };
+  zones?: ZoneMetrics[];
+  zone_timeline?: ZoneTimeline;
 }
 
 export interface SimulationEvent {

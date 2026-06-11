@@ -174,6 +174,86 @@ export default function SimulationRunner() {
     setRunKey((key) => key + 1);
   }, [setSimulationSummary]);
 
+  const ctaButton = useMemo(() => {
+    if (complete) {
+      return (
+        <button
+          onClick={() => {
+            setStep(3);
+            navigate(`/results/${sessionId}`);
+          }}
+          className="chamfered"
+          style={{
+            width: '100%',
+            height: 58,
+            background: 'linear-gradient(135deg, #00e5ff, #00a8cc)',
+            color: '#080c14',
+            border: '2px solid #00e5ff',
+            fontFamily: 'var(--font-data)',
+            fontWeight: 'bold',
+            fontSize: 15,
+            letterSpacing: '0.05em',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            boxShadow: '0 4px 15px rgba(0, 229, 255, 0.25)',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            outline: 'none',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.015)';
+            e.currentTarget.style.boxShadow = '0 6px 22px rgba(0, 229, 255, 0.4)';
+            e.currentTarget.style.borderColor = '#ffffff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 229, 255, 0.25)';
+            e.currentTarget.style.borderColor = '#00e5ff';
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = 'scale(0.98)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 229, 255, 0.15)';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = 'scale(1.015)';
+          }}
+        >
+          <span style={{ fontSize: 18 }}>✓</span>
+          <span>RESULTS READY &mdash; EXPLORE SIMULATION RESULTS &rarr;</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        disabled
+        className="chamfered"
+        style={{
+          width: '100%',
+          height: 58,
+          background: 'rgba(0, 229, 255, 0.05)',
+          color: 'rgba(0, 229, 255, 0.6)',
+          border: '1px dashed rgba(0, 229, 255, 0.3)',
+          fontFamily: 'var(--font-data)',
+          fontWeight: 'bold',
+          fontSize: 14,
+          letterSpacing: '0.05em',
+          cursor: 'not-allowed',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          transition: 'all 0.25s ease',
+        }}
+      >
+        <span style={{ fontSize: 16 }} className="animate-spin-slow">⏳</span>
+        <span>SIMULATION RUNNING... (DAY {day}/30)</span>
+      </button>
+    );
+  }, [complete, day, navigate, sessionId, setStep]);
+
   if (!city) return null;
 
   return (
@@ -265,18 +345,18 @@ export default function SimulationRunner() {
               )}
             </div>
 
-            {complete && (
-              <button
-                onClick={() => {
-                  setStep(3);
-                  navigate(`/results/${sessionId}`);
-                }}
-                className="chamfered"
-                style={{ width: '100%', height: 56, background: '#00e5ff', border: 0, fontFamily: 'var(--font-data)', fontSize: 14 }}
-              >
-                View computed results →
-              </button>
-            )}
+            <style>{`
+              @keyframes spin-slow {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+              .animate-spin-slow {
+                animation: spin-slow 3s linear infinite;
+                display: inline-block;
+              }
+            `}</style>
+
+            {ctaButton}
           </>
         )}
       </div>

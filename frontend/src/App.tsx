@@ -8,6 +8,7 @@ import PolicyQuestions from './pages/PolicyQuestions';
 import SimulationRunner from './pages/SimulationRunner';
 import ResultsDashboard from './pages/ResultsDashboard';
 import Recommendations from './pages/Recommendations';
+import ComparisonDashboard from './pages/ComparisonDashboard';
 import './styles/globals.css';
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
               <Route path="/simulate/:cityId/:policyId" element={<SimulationRunner />} />
               <Route path="/results/:sessionId" element={<ResultsDashboard />} />
               <Route path="/recommendations/:sessionId" element={<Recommendations />} />
+              <Route path="/compare" element={<ComparisonDashboard />} />
               <Route path="*" element={<Landing />} />
             </Routes>
           </main>
