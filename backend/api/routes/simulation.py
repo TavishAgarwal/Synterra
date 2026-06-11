@@ -259,14 +259,15 @@ def _recommendations(final_metrics: dict, score: int) -> dict:
     }
 
 
-def _summary(final_metrics: dict, score: int, recommendations: dict) -> dict:
+def _summary(final_metrics: dict, score: int, recommendations: dict, zone_timeline: dict | None = None) -> dict:
     modal_shift = final_metrics.get("modal_shift_pct", 0.0)
     protest = final_metrics.get("protest_probability", 0.0)
     revenue = final_metrics.get("revenue_impact_pct", 0.0)
     by_archetype = final_metrics.get("modal_shift_by_archetype", {})
     most_affected = max(by_archetype, key=by_archetype.get) if by_archetype else "none"
     verdict = "Apply as-is" if score >= 80 else "Apply with changes" if score >= 55 else "Redesign recommended"
-    return {
+    
+    summary_data = {
         "score": score,
         "verdict": verdict,
         "impact_cards": [
@@ -282,6 +283,13 @@ def _summary(final_metrics: dict, score: int, recommendations: dict) -> dict:
         "validation_note": "Computed engine output. Treat as a stress-test signal, not a prediction or implementation approval.",
         "recommendations": recommendations,
     }
+
+    if "zones" in final_metrics:
+        summary_data["zones"] = final_metrics["zones"]
+    if zone_timeline:
+        summary_data["zone_timeline"] = zone_timeline
+
+    return summary_data
 
 
 async def _compute_run(simulation_request: SimulationRequest, sim_id: str) -> list[dict]:
@@ -315,6 +323,24 @@ async def _compute_run(simulation_request: SimulationRequest, sim_id: str) -> li
 
     score = _score_run(final_metrics, policy_metadata["magnitude"])
     recommendations = _recommendations(final_metrics, score)
+
+    # Build zone timeline from accumulated events
+    zone_timeline = {}
+    for ev in events:
+        if ev["event"] == "day_update":
+            day = ev["day"]
+            day_zones = ev["metrics"].get("zones", [])
+            for z in day_zones:
+                zid = z["zone_id"]
+                if zid not in zone_timeline:
+                    zone_timeline[zid] = []
+                zone_timeline[zid].append({
+                    "day": day,
+                    "sentiment": z["metrics"]["sentiment"],
+                    "protest_probability": z["metrics"]["protest_probability"],
+                    "modal_shift_pct": z["metrics"]["modal_shift_pct"],
+                })
+
     events.append(
         {
             "event": "sim_complete",
@@ -322,7 +348,7 @@ async def _compute_run(simulation_request: SimulationRequest, sim_id: str) -> li
             "computed": True,
             "metrics": final_metrics,
             "policy": policy_metadata,
-            "summary": _summary(final_metrics, score, recommendations),
+            "summary": _summary(final_metrics, score, recommendations, zone_timeline=zone_timeline),
         }
     )
     return events
