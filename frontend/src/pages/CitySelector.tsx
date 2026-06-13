@@ -4,30 +4,37 @@ import { motion } from 'framer-motion';
 import { cityProfiles, getCityById } from '../data/cityProfiles';
 import { useSimulationContext } from '../context/SimulationContext';
 import { API_BASE } from '../api/config';
+import type { SimulationSummary } from '../api/simulation';
 
 export default function CitySelector() {
   const navigate = useNavigate();
   const { setSelectedCity, setStep, setSimulationId, setSimulationSummary } = useSimulationContext();
   const [hoveredCity, setHoveredCity] = useState<string | null>(null);
   const [inspectorCityId, setInspectorCityId] = useState<string>('delhi');
-  const [pastRuns, setPastRuns] = useState<any[]>([]);
+  const [pastRuns, setPastRuns] = useState<{status: string; city_id: string; simulation_id: string; summary: SimulationSummary; created_at: string; policy_text: string; verdict: string; score: number}[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(false);
 
   useEffect(() => {
-    setLoadingRuns(true);
-    fetch(`${API_BASE}/api/simulations`)
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error('Failed to load past runs');
-      })
-      .then((data) => {
-        if (data && data.simulations) {
+    let active = true;
+    const fetchRuns = async () => {
+      try {
+        setLoadingRuns(true);
+        const res = await fetch(`${API_BASE}/api/simulations`);
+        if (!active) return;
+        if (!res.ok) throw new Error('Failed to load past runs');
+        const data = await res.json();
+        if (active && data && data.simulations) {
           // Only show completed/error runs
-          setPastRuns(data.simulations.filter((r: any) => r.status === 'complete'));
+          setPastRuns(data.simulations.filter((r: {status: string}) => r.status === 'complete'));
         }
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoadingRuns(false));
+      } catch (err) {
+        if (active) console.error(err);
+      } finally {
+        if (active) setLoadingRuns(false);
+      }
+    };
+    fetchRuns();
+    return () => { active = false; };
   }, []);
 
   const handleCityClick = (cityId: string) => {
@@ -38,7 +45,7 @@ export default function CitySelector() {
     navigate(`/policy/${city.id}`);
   };
 
-  const handlePastRunClick = (run: any) => {
+  const handlePastRunClick = (run: {city_id: string; simulation_id: string; summary: SimulationSummary}) => {
     const city = getCityById(run.city_id);
     if (city) setSelectedCity(city);
     setSimulationId(run.simulation_id);

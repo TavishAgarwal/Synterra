@@ -41,7 +41,7 @@ export interface SimulationEvent {
   tier2_broadcast_count?: number;
   summary?: SimulationSummary;
   message?: string;
-  network_sample?: any[];
+  network_sample?: unknown[];
 }
 
 interface RunSimulationInput {

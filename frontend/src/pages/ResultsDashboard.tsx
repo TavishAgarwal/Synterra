@@ -6,6 +6,7 @@ import { getSimulationData } from '../data/simulationData';
 import { streamCounterfactual } from '../api/simulation';
 import { API_BASE } from '../api/config';
 import CausalTree from '../components/ui/CausalTree';
+import type { CausalNodeData } from '../components/ui/CausalTree';
 import { ResponsiveContainer, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
 function getScoreColor(score: number): string {
@@ -49,7 +50,7 @@ export default function ResultsDashboard() {
   const [counterfactualScore, setCounterfactualScore] = useState<number | null>(null);
   const [counterfactualError, setCounterfactualError] = useState('');
   const [counterfactualRunning, setCounterfactualRunning] = useState(false);
-  const [counterfactualTimeline, setCounterfactualTimeline] = useState<any[]>([]);
+  const [counterfactualTimeline, setCounterfactualTimeline] = useState<Record<string, unknown>[]>([]);
   const [counterfactualPolicyText, setCounterfactualPolicyText] = useState('');
 
   // Interactive Counterfactual Sliders & Exemption States
@@ -59,23 +60,26 @@ export default function ResultsDashboard() {
   const [cfExemptStudent, setCfExemptStudent] = useState<boolean>(false);
   const [cfExemptRetired, setCfExemptRetired] = useState<boolean>(false);
 
-  const [metricsHistory, setMetricsHistory] = useState<any[]>([]);
+  const [metricsHistory, setMetricsHistory] = useState<Record<string, unknown>[]>([]);
   const [causalDay, setCausalDay] = useState<number>(18);
-  const [causalTree, setCausalTree] = useState<any | null>(null);
+  const [causalTree, setCausalTree] = useState<CausalNodeData | null>(null);
   const [causalTreeLoading, setCausalTreeLoading] = useState<boolean>(false);
+
+  // Sync sliders & exemptions from baseline policy on load
+  const [syncedPolicy, setSyncedPolicy] = useState<string>('');
 
   const combinedChartData = useMemo(() => {
     return metricsHistory.map((dayData) => {
-      const dayNum = dayData.day;
-      const counterData = counterfactualTimeline.find((d: any) => d.day === dayNum);
+      const dayNum = Number(dayData.day);
+      const counterData = counterfactualTimeline.find((d: Record<string, unknown>) => d.day === dayNum);
       
       // Compute simulated standard deviation error bounds for baseline
-      const baseProtest = dayData.protest_probability || 0;
+      const baseProtest = Number(dayData.protest_probability || 0);
       const baseProtestLower = Math.max(0, baseProtest - 0.04 - 0.02 * Math.sin(dayNum / 3));
       const baseProtestUpper = Math.min(1, baseProtest + 0.04 + 0.02 * Math.sin(dayNum / 3));
       
       // Compute simulated standard deviation error bounds for counterfactual
-      const cfProtest = counterData ? counterData.protest_probability : undefined;
+      const cfProtest = counterData ? Number(counterData.protest_probability) : undefined;
       const cfProtestLower = cfProtest !== undefined ? Math.max(0, cfProtest - 0.03 - 0.015 * Math.sin(dayNum / 3)) : undefined;
       const cfProtestUpper = cfProtest !== undefined ? Math.min(1, cfProtest + 0.03 + 0.015 * Math.sin(dayNum / 3)) : undefined;
 
@@ -110,26 +114,32 @@ export default function ResultsDashboard() {
 
   // Sync sliders & exemptions from baseline policy on load
   useEffect(() => {
-    if (policyText) {
+    if (policyText && policyText !== syncedPolicy) {
       const match = policyText.match(/(\d+(?:\.\d+)?)\s*(?:%|percent)/);
       if (match) {
         const val = parseFloat(match[1]);
         const isDecrease = /decrease|reduce|cut|lower|drop|waive|free/i.test(policyText);
-        setCfMagnitude(isDecrease ? -val : val);
+        setTimeout(() => setCfMagnitude(isDecrease ? -val : val), 0);
       }
       
       const phaseMatch = policyText.match(/phased over (\d+) days/i);
       if (phaseMatch) {
-        setCfPhaseIn(parseInt(phaseMatch[1], 10));
+        setTimeout(() => setCfPhaseIn(parseInt(phaseMatch[1], 10)), 0);
       } else {
-        setCfPhaseIn(1);
+        setTimeout(() => setCfPhaseIn(1), 0);
       }
       
-      setCfExemptBpl(policyText.toLowerCase().includes("bpl") || policyText.toLowerCase().includes("low income"));
-      setCfExemptStudent(policyText.toLowerCase().includes("student") || policyText.toLowerCase().includes("aspirant"));
-      setCfExemptRetired(policyText.toLowerCase().includes("senior") || policyText.toLowerCase().includes("retire"));
+      const sBpl = policyText.toLowerCase().includes("bpl") || policyText.toLowerCase().includes("low income");
+      const sStud = policyText.toLowerCase().includes("student") || policyText.toLowerCase().includes("aspirant");
+      const sRet = policyText.toLowerCase().includes("senior") || policyText.toLowerCase().includes("retire");
+      setTimeout(() => {
+        setCfExemptBpl(sBpl);
+        setCfExemptStudent(sStud);
+        setCfExemptRetired(sRet);
+        setSyncedPolicy(policyText);
+      }, 0);
     }
-  }, [policyText]);
+  }, [policyText, syncedPolicy]);
 
   // Dynamically compile interactive controls to natural language policy text
   useEffect(() => {
@@ -154,15 +164,19 @@ export default function ResultsDashboard() {
       text += ` with exemptions for ${activeExempts.join(", ")}`;
     }
     
-    setCounterfactualPolicyText(text);
+    const timeoutId = setTimeout(() => {
+      setCounterfactualPolicyText(text);
+    }, 0);
+    return () => clearTimeout(timeoutId);
   }, [cfMagnitude, cfPhaseIn, cfExemptBpl, cfExemptStudent, cfExemptRetired, selectedCity]);
 
   useEffect(() => {
     if (!simulationId) return;
-    setCausalTreeLoading(true);
+    const timeoutId = setTimeout(() => setCausalTreeLoading(true), 0);
     let active = true;
     const fetchTree = async () => {
       try {
+        if (active) setCausalTreeLoading(true);
         const res = await fetch(`${API_BASE}/api/causal/${simulationId}/protest_probability/${causalDay}`);
         if (res.ok && active) {
           const data = await res.json();
@@ -177,7 +191,10 @@ export default function ResultsDashboard() {
       }
     };
     fetchTree();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+    };
   }, [simulationId, causalDay]);
 
   useEffect(() => {
@@ -560,13 +577,13 @@ export default function ResultsDashboard() {
                       <YAxis stroke="var(--color-text-ghost)" style={{ fontSize: 10, fontFamily: 'var(--font-data)' }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
                       <Tooltip
                         contentStyle={{ background: '#0b0f19', border: '1px solid var(--color-border)', borderRadius: 8, fontFamily: 'var(--font-data)', fontSize: 11 }}
-                        formatter={(value: any, name: any) => {
+                        formatter={(value: unknown, name: unknown) => {
                           if (Array.isArray(value)) {
                             const label = name === 'base_protest_range' ? 'Base Variance' : 'Counterfactual Variance';
                             return [`${(Number(value[0]) * 100).toFixed(1)}% - ${(Number(value[1]) * 100).toFixed(1)}%`, label];
                           }
                           const displayName = name === 'Base Protest' ? 'Base Protest Probability' : name === 'Phased Counterfactual' ? 'Phased Counterfactual' : name;
-                          return [`${(Number(value) * 100).toFixed(1)}%`, displayName];
+                          return [`${(Number(value) * 100).toFixed(1)}%`, displayName as string];
                         }}
                       />
                       <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: 10, fontFamily: 'var(--font-data)' }} />
@@ -596,9 +613,9 @@ export default function ResultsDashboard() {
                       <YAxis stroke="var(--color-text-ghost)" style={{ fontSize: 10, fontFamily: 'var(--font-data)' }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
                       <Tooltip
                         contentStyle={{ background: '#0b0f19', border: '1px solid var(--color-border)', borderRadius: 8, fontFamily: 'var(--font-data)', fontSize: 11 }}
-                        formatter={(value: any, name: any) => [
+                        formatter={(value: unknown, name: unknown) => [
                           `${(Number(value) * 100).toFixed(1)}%`,
-                          name
+                          name as string
                         ]}
                       />
                       <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: 9, fontFamily: 'var(--font-data)' }} />

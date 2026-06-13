@@ -63,7 +63,7 @@ export default function SimulationRunner() {
   const [error, setError] = useState('');
   const [runKey, setRunKey] = useState(0);
   const [showPersonalizedEntry, setShowPersonalizedEntry] = useState(false);
-  const [govAlertStarted, setGovAlertStarted] = useState(false);
+  const [govAlertStarted, setGovAlertStarted] = useState<boolean>(false);
   const [govRecommendationVisible, setGovRecommendationVisible] = useState(false);
   const [decisionCount, setDecisionCount] = useState(4847);
   const [broadcastCount, setBroadcastCount] = useState(23);
@@ -95,9 +95,9 @@ export default function SimulationRunner() {
           ...prev
         ].slice(0, 3));
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Failed to inject crisis');
+      alert(err instanceof Error ? err.message : 'Failed to inject crisis');
     } finally {
       setIsInjecting(null);
     }
@@ -123,11 +123,11 @@ export default function SimulationRunner() {
         if (event.event === 'day_update') {
           setDay(event.day ?? 0);
           if ((event.day ?? 0) >= 18) {
-            setGovAlertStarted((started) => started || true);
+            setGovAlertStarted((started: unknown) => !!started || true);
           }
-          if (event.metrics) setMetrics(event.metrics);
+          if (event.metrics) setMetrics(event.metrics as SimulationMetrics);
           if (event.agent_feed) setFeed(event.agent_feed);
-          if (event.network_sample) setNetworkNodes(event.network_sample);
+          if (event.network_sample) setNetworkNodes(event.network_sample as GraphNode[]);
           if (event.alerts?.length) {
             setAlerts((previous) => [
               ...event.alerts!.map((alert) => alert.message),
@@ -272,7 +272,7 @@ export default function SimulationRunner() {
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontFamily: 'var(--font-data)', fontSize: 10, color: 'var(--color-text-dim)' }}>{label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-ghost)', marginTop: 2 }}>{desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-ghost', marginTop: 2 }}>{desc}</div>
                     </div>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 'bold', color: color || 'var(--color-text-primary)' }}>{value}</div>
                   </div>
@@ -297,13 +297,13 @@ export default function SimulationRunner() {
                     <button
                       key={crisis.id}
                       disabled={complete || isInjecting !== null || day === 0}
-                      onClick={() => handleInjectCrisis(crisis.id as any)}
+                      onClick={() => handleInjectCrisis(crisis.id as 'flood' | 'railway_strike' | 'fuel_crisis' | 'pandemic' | 'exam_leak')}
                       style={{
                         width: '100%',
                         padding: '10px 14px',
                         background: 'rgba(255, 255, 255, 0.02)',
                         border: '1px solid var(--color-border)',
-                        color: 'var(--color-text-primary)',
+                        color: 'var(--color-text-primary',
                         textAlign: 'left',
                         fontFamily: 'var(--font-data)',
                         fontSize: 12,
@@ -354,7 +354,7 @@ export default function SimulationRunner() {
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid var(--color-border)', padding: 12, borderRadius: 6 }}>
-                <div style={{ fontFamily: 'var(--font-data)', fontSize: 10, color: 'var(--color-text-dim)', marginBottom: 6 }}>NETWORK SPECS</div>
+                <div style={{ fontFamily: 'var(--font-data)', fontSize: 10, color: 'var(--color-text-ghost)', marginBottom: 6 }}>NETWORK SPECS</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-data)', fontSize: 11 }}>
                   <span>Scale-free clustering exponent: 2.4</span>
                   <span>Avg Path Distance: 3.1</span>

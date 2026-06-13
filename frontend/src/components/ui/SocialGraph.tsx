@@ -32,9 +32,9 @@ const actionColors: Record<string, string> = {
 
 export default function SocialGraph({ nodes: inputNodes, width = 500, height = 300 }: SocialGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [hoveredAgent, setHoveredAgent] = useState<any | null>(null);
+  const [hoveredAgent, setHoveredAgent] = useState<GraphNode | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const hoveredNodeRef = useRef<any>(null);
+  const hoveredNodeRef = useRef<GraphNode | null>(null);
 
   // Generate stable links based on node archetypes and index
   const links = useMemo(() => {
@@ -54,7 +54,8 @@ export default function SocialGraph({ nodes: inputNodes, width = 500, height = 3
         const target = inputNodes[j];
         const sameArch = source.archetype === target.archetype;
         const sameTier = source.tier === target.tier;
-        const rand = Math.random();
+        // Pseudo-random deterministic connection based on ID
+        const rand = ((i * 13) + (j * 17)) % 100 / 100;
         
         if ((sameArch && rand < 0.25) || (sameTier && rand < 0.15 && source.tier > 1)) {
           generatedLinks.push({ source: source.id, target: target.id });
@@ -74,8 +75,8 @@ export default function SocialGraph({ nodes: inputNodes, width = 500, height = 3
     // Deep copy input nodes to keep D3 properties stable
     const d3Nodes = inputNodes.map((n) => ({ ...n })) as d3.SimulationNodeDatum[];
     const d3Links = links.map((l) => ({
-      source: d3Nodes.find((n) => (n as any).id === l.source) || l.source,
-      target: d3Nodes.find((n) => (n as any).id === l.target) || l.target,
+      source: d3Nodes.find((n) => (n as GraphNode).id === l.source) || l.source,
+      target: d3Nodes.find((n) => (n as GraphNode).id === l.target) || l.target,
     })) as d3.SimulationLinkDatum<d3.SimulationNodeDatum>[];
 
     // Configure simulation forces
@@ -91,9 +92,9 @@ export default function SocialGraph({ nodes: inputNodes, width = 500, height = 3
 
       // 1. Draw links (edges)
       d3Links.forEach((link) => {
-        const source = link.source as any;
-        const target = link.target as any;
-        if (!source || !target) return;
+        const source = link.source as d3.SimulationNodeDatum & GraphNode;
+        const target = link.target as d3.SimulationNodeDatum & GraphNode;
+        if (!source || !target || source.x === undefined || source.y === undefined || target.x === undefined || target.y === undefined) return;
 
         const isHighlighted = hoveredNodeRef.current && 
           (source.id === hoveredNodeRef.current.id || target.id === hoveredNodeRef.current.id);
@@ -113,7 +114,9 @@ export default function SocialGraph({ nodes: inputNodes, width = 500, height = 3
       ctx.lineWidth = 1;
 
       // 2. Draw nodes
-      d3Nodes.forEach((node: any) => {
+      d3Nodes.forEach((nodeAny: unknown) => {
+        const node = nodeAny as d3.SimulationNodeDatum & GraphNode;
+        if (node.x === undefined || node.y === undefined) return;
         const color = actionColors[node.action] || '#849396';
         const isTriggered = node.action === 'protest_join' || node.action === 'broadcast';
         const isHovered = hoveredNodeRef.current && node.id === hoveredNodeRef.current.id;
@@ -153,10 +156,11 @@ export default function SocialGraph({ nodes: inputNodes, width = 500, height = 3
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
-      let closest: any = null;
+      let closest: (d3.SimulationNodeDatum & GraphNode) | null = null;
       let minDistance = 16;
 
-      d3Nodes.forEach((node: any) => {
+      d3Nodes.forEach((nodeAny: unknown) => {
+        const node = nodeAny as d3.SimulationNodeDatum & GraphNode;
         if (node.x === undefined || node.y === undefined) return;
         const dx = node.x - mouseX;
         const dy = node.y - mouseY;
