@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSimulationContext } from '../../context/SimulationContext';
+import logoImg from '../../assets/synterra-logo.jpg';
 
 const steps = ['City', 'Policy', 'Questions', 'Simulate', 'Results'];
 
@@ -35,18 +36,65 @@ export const Breadcrumb: React.FC = () => {
     <div
       className="no-print"
       style={{
-        height: 40,
+        height: 52,
         background: '#0d0f14',
         borderBottom: '1px solid #1e2d47',
         display: 'flex',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        padding: '0 24px',
         position: 'sticky',
         top: 0,
         zIndex: 100,
       }}
     >
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+      {/* Clickable Logo redirects to main page */}
+      <button
+        onClick={() => navigate('/')}
+        style={{
+          background: 'transparent',
+          border: 0,
+          padding: 0,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <img
+          src={logoImg}
+          alt="Synterra Logo"
+          style={{
+            height: 32,
+            width: 'auto',
+            borderRadius: 4,
+            border: '1px solid rgba(255,255,255,0.05)',
+          }}
+        />
+        <span
+          style={{
+            fontFamily: 'var(--font-data)',
+            fontSize: 14,
+            fontWeight: 'bold',
+            color: '#00e5ff',
+            letterSpacing: '0.15em',
+          }}
+        >
+          SYNTERRA
+        </span>
+      </button>
+
+      {/* Centered Steps */}
+      <nav
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0,
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }}
+      >
         {steps.map((label, index) => {
           const isActive = index === activeStep;
           const isCompleted = index < activeStep;
@@ -83,6 +131,9 @@ export const Breadcrumb: React.FC = () => {
           );
         })}
       </nav>
+
+      {/* Spacer to keep center elements centered in flexbox */}
+      <div style={{ width: 140 }} />
     </div>
   );
 };

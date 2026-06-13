@@ -187,6 +187,8 @@ class SimulationEngine:
 
         self._config_loader = ConfigLoader(config_dir)
         self._government_agent = None  # Initialised per scenario run
+        self.active_crisis_overrides = {}
+        self.causal_trace_log = {}
 
     # ── Core Simulation Loop ──────────────────────────────
     async def run_scenario(
@@ -271,8 +273,21 @@ class SimulationEngine:
             agent_sentiments: dict[str, float] = {}
 
             for agent_id, agent in tier1_agents.items():
+                agent_fare_change = effective_fare_change
+                exemptions = policy_state.get("exemptions", {})
+                if exemptions:
+                    if exemptions.get("student") and agent["archetype"] in ("student", "exam_aspirant"):
+                        agent_fare_change = 0.0
+                    elif exemptions.get("bpl") and (
+                        agent["income_decile"] in ("D1", "D2", "D3")
+                        or agent["archetype"] in ("daily_wage_worker", "street_vendor", "migrant_worker")
+                    ):
+                        agent_fare_change = 0.0
+                    elif exemptions.get("retired") and agent["archetype"] == "retired":
+                        agent_fare_change = 0.0
+
                 decision = self._tier1_decision_step(
-                    agent, effective_fare_change, day, rng
+                    agent, agent_fare_change, day, rng
                 )
                 tier1_decisions[agent_id] = decision["action"]
                 agent_sentiments[agent_id] = decision["sentiment"]
@@ -331,6 +346,15 @@ class SimulationEngine:
                     influence = sentiment * reach * 0.1  # Decay factor
                     current = propagation_updates.get(neighbour_id, 0.0)
                     propagation_updates[neighbour_id] = current + influence
+                    
+                    # Log causal connection if influence is significant
+                    if abs(influence) > 0.005:
+                        self.causal_trace_log[neighbour_id] = {
+                            "influencer": source_id,
+                            "day": day,
+                            "influence": influence,
+                            "sentiment": sentiment,
+                        }
 
             # ─── Step 7: Apply network influence to resistance scores ───
             for agent_id, influence_delta in propagation_updates.items():
@@ -369,6 +393,19 @@ class SimulationEngine:
 
             # ─── Step 10: Government agent monitoring ───
             alerts: list[dict] = []
+            if getattr(self, "active_crisis_overrides", {}):
+                crisis_type = self.active_crisis_overrides.get("crisis_type_name")
+                if crisis_type and crisis_type not in getattr(self, "notified_crises", []):
+                    if not hasattr(self, "notified_crises"):
+                        self.notified_crises = []
+                    self.notified_crises.append(crisis_type)
+                    from datetime import datetime, timezone
+                    alerts.append({
+                        "action_type": "crisis_injection",
+                        "message": f"[CRISIS] Dynamic disruption injected mid-simulation: {crisis_type.replace('_', ' ').upper()}! Agent parameters shocked.",
+                        "severity": "critical",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
             if self._government_agent:
                 gov_action = await self._government_agent.monitor_simulation({
                     "day": day,
@@ -759,6 +796,46 @@ class SimulationEngine:
                 action = "mode_switch"
             elif impact_ratio > 0.06:
                 action = "trip_consolidation"
+
+        # ── Apply active crisis overrides ──
+        overrides = getattr(self, "active_crisis_overrides", {})
+        if overrides:
+            crisis_sentiment_mod = 0.0
+
+            # 1. Railway strike
+            if overrides.get("suburban_rail_ridership_multiplier") == 0.0:
+                if archetype in ("daily_wage_worker", "migrant_worker", "street_vendor"):
+                    crisis_sentiment_mod -= 0.35
+                    if rng.random() < 0.5:
+                        action = "protest_join"
+                    else:
+                        action = "mode_switch"
+
+            # 2. Flood
+            if overrides.get("transit_disruption_pct") == 1.0:
+                crisis_sentiment_mod -= 0.50
+                if archetype == "tech_knowledge_worker":
+                    action = "wfh_increase"
+                else:
+                    action = "trip_consolidation"
+                    if rng.random() < 0.3:
+                        action = "protest_join"
+
+            # 3. Fuel crisis
+            if "cab_fare_multiplier" in overrides or "bus_fare_multiplier" in overrides:
+                mult = overrides.get("cab_fare_multiplier", 1.0)
+                crisis_sentiment_mod -= (mult - 1.0) * 0.4
+                if impact_ratio > 0.04:
+                    action = "mode_switch"
+
+            # 4. Exam paper leak
+            if "examination_trust_shock" in overrides:
+                if archetype in ("student", "exam_aspirant"):
+                    crisis_sentiment_mod -= 0.60
+                    if rng.random() < 0.4:
+                        action = "protest_join"
+
+            sentiment = max(-1.0, min(1.0, sentiment + crisis_sentiment_mod))
 
         # ── Protest evaluation ──
         if (

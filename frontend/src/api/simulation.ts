@@ -41,6 +41,7 @@ export interface SimulationEvent {
   tier2_broadcast_count?: number;
   summary?: SimulationSummary;
   message?: string;
+  network_sample?: any[];
 }
 
 interface RunSimulationInput {
@@ -181,4 +182,20 @@ export async function streamCounterfactual(
     );
   }
   await readSseResponse(response, onEvent);
+}
+
+export async function injectCrisis(
+  simulationId: string,
+  crisisType: 'flood' | 'railway_strike' | 'fuel_crisis' | 'pandemic' | 'exam_leak'
+): Promise<{ success: boolean; crisis: string; affected_zones: string[] }> {
+  const response = await fetch(`${API_BASE}/api/simulations/${simulationId}/inject-crisis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ crisis_type: crisisType }),
+  });
+  if (!response.ok) {
+    const detail = await responseDetail(response) || 'Failed to inject crisis';
+    throw new Error(detail);
+  }
+  return response.json();
 }

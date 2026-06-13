@@ -7,44 +7,44 @@
 
 /* ─── Color Tokens ─── */
 :root {
-  --color-void:              #0a0c10;
-  --color-surface:           #111318;
-  --color-surface-low:       #1a1c20;
-  --color-surface-container: #1e2024;
-  --color-surface-high:      #282a2e;
-  --color-surface-highest:   #333539;
-  --color-surface-bright:    #37393e;
+  --color-void:              #030712;
+  --color-surface:           #0b0f19;
+  --color-surface-low:       #111827;
+  --color-surface-container: #1f2937;
+  --color-surface-high:      #374151;
+  --color-surface-highest:   #4b5563;
+  --color-surface-bright:    #6b7280;
 
-  --color-primary:           #00e5ff;
-  --color-primary-dim:       #00daf3;
-  --color-primary-glow:      rgba(0, 229, 255, 0.15);
-  --color-primary-border:    rgba(0, 229, 255, 0.20);
+  --color-primary:           #06b6d4;
+  --color-primary-dim:       #0891b2;
+  --color-primary-glow:      rgba(6, 182, 212, 0.15);
+  --color-primary-border:    rgba(6, 182, 212, 0.20);
 
-  --color-secondary:         #bdc2ff;
-  --color-secondary-deep:    #343d96;
+  --color-secondary:         #c084fc;
+  --color-secondary-deep:    #6b21a8;
 
-  --color-alert:             #ff0055;
-  --color-alert-dim:         rgba(255, 0, 85, 0.15);
-  --color-alert-border:      rgba(255, 0, 85, 0.40);
+  --color-alert:             #ef4444;
+  --color-alert-dim:         rgba(239, 68, 68, 0.15);
+  --color-alert-border:      rgba(239, 68, 68, 0.40);
 
-  --color-warn:              #ffb347;
-  --color-warn-dim:          rgba(255, 179, 71, 0.15);
+  --color-warn:              #f59e0b;
+  --color-warn-dim:          rgba(245, 158, 11, 0.15);
 
-  --color-success:           #1aad6e;
-  --color-success-dim:       rgba(26, 173, 110, 0.15);
+  --color-success:           #10b981;
+  --color-success-dim:       rgba(16, 185, 129, 0.15);
 
-  --color-text-primary:      #e2e2e8;
-  --color-text-secondary:    #bac9cc;
-  --color-text-dim:          #849396;
-  --color-text-ghost:        #3d5470;
+  --color-text-primary:      #f3f4f6;
+  --color-text-secondary:    #d1d5db;
+  --color-text-dim:          #9ca3af;
+  --color-text-ghost:        #4b5563;
 
-  --color-border:            #3b494c;
-  --color-border-dim:        rgba(59, 73, 76, 0.5);
+  --color-border:            #1f2937;
+  --color-border-dim:        rgba(31, 41, 55, 0.5);
 
   /* Typography font stacks */
-  --font-display: 'DM Serif Display', serif;
-  --font-body: 'PT Serif', serif;
-  --font-data: 'Bitcount Single', 'Courier New', monospace;
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-data: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 /* ─── Reset ─── */
@@ -52,7 +52,6 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  border-radius: 0;
 }
 
 html, body, #root {
@@ -61,11 +60,6 @@ html, body, #root {
   background: var(--color-void);
   color: var(--color-text-primary);
   font-family: var(--font-body);
-}
-
-/* Force 0 border-radius on EVERYTHING */
-* {
-  border-radius: 0 !important;
 }
 
 /* ─── Scrollbar ─── */
@@ -506,5 +500,19 @@ input, textarea, [contenteditable] {
   :root {
     --font-scale: 1;
     --sidenav-width: 240px;
+  }
+}
+
+/* ─── Dashboard Grid Layout ─── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1023px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
   }
 }

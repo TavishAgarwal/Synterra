@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTypewriter } from '../hooks/useTypewriter';
+import logoImg from '../assets/synterra-logo.jpg';
 
 const tickerItems = [
   ['Ramesh, Shahdara', 'Switched to BEST bus'],
@@ -66,18 +67,28 @@ export default function Landing() {
             style={{
               background: 'transparent',
               border: 0,
-              fontFamily: 'var(--font-data)',
-              fontSize: 14,
-              letterSpacing: '0.15em',
-              color: '#00e5ff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: 0,
             }}
           >
-            SYNTHETIC_NATION<span className="cursor-blink">_</span>
+            <img src={logoImg} alt="Synterra Logo" style={{ height: 36, width: 'auto', borderRadius: 4 }} />
+            <span style={{
+              fontFamily: 'var(--font-data)',
+              fontSize: 16,
+              letterSpacing: '0.15em',
+              color: '#00e5ff',
+              fontWeight: 'bold',
+            }}>
+              SYNTERRA<span className="cursor-blink">_</span>
+            </span>
           </button>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', color: 'var(--color-text-ghost)' }}>
             <button className="landing-link" onClick={() => scrollTo('how')}>How it works</button>
             <span>·</span>
-            <a className="landing-link" href="https://github.com/TavishAgarwal/SynethicNation" target="_blank" rel="noreferrer">
+            <a className="landing-link" href="https://github.com/Pulkit1r/Synterra" target="_blank" rel="noreferrer">
               GitHub →
             </a>
           </div>
@@ -235,10 +246,10 @@ export default function Landing() {
       </section>
 
       <footer className="landing-footer">
-        <span>SYNTHETIC_NATION</span>
+        <span>SYNTERRA</span>
         <span>FAR AWAY 2026 · Agentic & Autonomous Systems</span>
-        <a href="https://github.com/TavishAgarwal/SynethicNation" target="_blank" rel="noreferrer">
-          github.com/TavishAgarwal/SynethicNation
+        <a href="https://github.com/Pulkit1r/Synterra" target="_blank" rel="noreferrer">
+          github.com/Pulkit1r/Synterra
         </a>
       </footer>
     </div>

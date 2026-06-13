@@ -12,10 +12,13 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select, desc
 
 from backend.api.demo_data import CITIES
 from backend.simulation.engine import SimulationEngine, StepResult
 from backend.simulation.policy_parser import PolicyParser
+from backend.data.database import AsyncSessionLocal, init_db
+from backend.data.models import SimulationRun
 
 router = APIRouter()
 
@@ -75,14 +78,19 @@ class CounterfactualRequest(BaseModel):
     seed: Annotated[int, Field(ge=0, le=2_147_483_647)] = 43
 
 
+class CrisisRequest(BaseModel):
+    crisis_type: Literal["flood", "railway_strike", "fuel_crisis", "pandemic", "exam_leak"]
+
+
 _simulations: dict[str, dict] = {}
+_active_engines: dict[str, SimulationEngine] = {}
 _request_windows: dict[str, deque[float]] = defaultdict(deque)
 _cache: dict[str, list[dict]] = {}
 _MAX_STORED_RUNS = 100
 _MAX_CACHE_ENTRIES = 32
 
 
-def _enforce_rate_limit(request: Request, limit: int = 5, window_seconds: int = 60) -> None:
+def _enforce_rate_limit(request: Request, limit: int = 20, window_seconds: int = 60) -> None:
     client = request.client.host if request.client else "unknown"
     now = time.monotonic()
     window = _request_windows[client]
@@ -131,10 +139,22 @@ async def _policy_params(policy_text: str) -> tuple[dict, dict]:
         magnitude = 8.0
     elif magnitude == 0 and any(word in text_lower for word in ("removed", "return to office")):
         magnitude = 12.0
+
+    # Parse active exemptions
+    exemptions = {}
+    if any(word in text_lower for word in ("exempt", "concession", "relief for", "free for")):
+        if "student" in text_lower or "aspirant" in text_lower:
+            exemptions["student"] = True
+        if any(word in text_lower for word in ("bpl", "low income", "poor", "vulnerable", "daily wage")):
+            exemptions["bpl"] = True
+        if any(word in text_lower for word in ("senior", "retire", "elderly", "aged")):
+            exemptions["retired"] = True
+
     params = {
         "fare_change_pct": magnitude,
         "phase_in_days": max(1, min(parsed.timeline_days, 90)) if "phase" in text_lower else 1,
         "policy_type": parsed.policy_type,
+        "exemptions": exemptions,
     }
     metadata = {
         "policy_type": parsed.policy_type,
@@ -142,6 +162,7 @@ async def _policy_params(policy_text: str) -> tuple[dict, dict]:
         "timeline_days": parsed.timeline_days,
         "affected_modes": parsed.affected_modes,
         "affected_population_segments": parsed.affected_population_segments,
+        "exemptions": exemptions,
     }
     return params, metadata
 
@@ -176,6 +197,47 @@ def _agent_feed(step: StepResult, zone_id: str) -> list[dict]:
             }
         )
     return feed
+
+
+def _network_sample(step: StepResult, zone_id: str) -> list[dict]:
+    nodes = []
+    
+    # 1. Tier 1 agents
+    t1_ids = list(step.tier1_decisions.keys())[:40]
+    for aid in t1_ids:
+        action = step.tier1_decisions.get(aid, "no_change")
+        sentiment = step.agent_sentiments.get(aid, 0.0)
+        parts = aid.split("_")
+        arch = parts[1] if len(parts) > 1 else "formal"
+        nodes.append({
+            "id": aid,
+            "archetype": arch.replace("_", " ").title(),
+            "sentiment": sentiment,
+            "tier": 1,
+            "action": action,
+        })
+        
+    # 2. Tier 2 agents
+    for t2 in step.tier2_broadcasts[:7]:
+        nodes.append({
+            "id": t2.get("source_id", "T2_AGENT"),
+            "archetype": t2.get("agent_type", "Opinion Leader").replace("_", " ").title(),
+            "sentiment": t2.get("sentiment", 0.0),
+            "tier": 2,
+            "action": "broadcast",
+        })
+        
+    # 3. Tier 3 agents
+    for t3 in step.tier3_decisions[:3]:
+        nodes.append({
+            "id": t3.get("agent_id", "T3_AGENT"),
+            "archetype": t3.get("role", "Cognitive Elite").replace("_", " ").title(),
+            "sentiment": -0.1 if "review" in t3.get("recommendation", "") else 0.1,
+            "tier": 3,
+            "action": t3.get("recommendation", "maintain_policy"),
+        })
+        
+    return nodes
 
 
 def _score_run(final_metrics: dict, magnitude: float) -> int:
@@ -288,44 +350,105 @@ async def _compute_run(simulation_request: SimulationRequest, sim_id: str) -> li
     params, policy_metadata = await _policy_params(simulation_request.policy_text)
     zone_id = CITY_PRIMARY_ZONES[simulation_request.city_id]
     engine = SimulationEngine()
+    _active_engines[sim_id] = engine
+    
+    # Pre-configure engine identifiers for overrides
+    engine.active_crisis_overrides["city_id"] = simulation_request.city_id
+    
     events: list[dict] = []
     final_metrics: dict = {}
+    
+    metrics_history = []
+    alerts = []
+    agent_feed = []
 
-    async for step in engine.run_scenario(
-        zone_id,
-        params,
-        time_horizon_days=simulation_request.time_horizon_days,
-        population_size=simulation_request.population_size,
-        seed=simulation_request.seed,
-    ):
-        final_metrics = step.metrics
+    # Save initial simulation state to SQLite DB
+    async with AsyncSessionLocal() as session:
+        db_run = SimulationRun(
+            simulation_id=sim_id,
+            city_id=simulation_request.city_id,
+            policy_text=simulation_request.policy_text,
+            time_horizon_days=simulation_request.time_horizon_days,
+            population_size=simulation_request.population_size,
+            seed=simulation_request.seed,
+            status="running",
+        )
+        session.add(db_run)
+        await session.commit()
+
+    try:
+        async for step in engine.run_scenario(
+            zone_id,
+            params,
+            time_horizon_days=simulation_request.time_horizon_days,
+            population_size=simulation_request.population_size,
+            seed=simulation_request.seed,
+        ):
+            final_metrics = step.metrics
+            feed_entry = _agent_feed(step, zone_id)
+            
+            metrics_history.append(step.metrics)
+            alerts.extend(step.alerts)
+            agent_feed.extend(feed_entry)
+
+            # Limit feed list to latest 50 to avoid massive log payloads
+            if len(agent_feed) > 50:
+                agent_feed = agent_feed[-50:]
+
+            events.append(
+                {
+                    "event": "day_update",
+                    "simulation_id": sim_id,
+                    "computed": True,
+                    "day": step.day,
+                    "metrics": step.metrics,
+                    "alerts": step.alerts,
+                    "agent_feed": feed_entry,
+                    "tier2_broadcast_count": len(step.tier2_broadcasts),
+                    "tier3_decisions": step.tier3_decisions[:5],
+                    "network_sample": _network_sample(step, zone_id),
+                }
+            )
+
+        score = _score_run(final_metrics, policy_metadata["magnitude"])
+        recommendations = _recommendations(final_metrics, score)
+        summary_data = _summary(final_metrics, score, recommendations)
+        
         events.append(
             {
-                "event": "day_update",
+                "event": "sim_complete",
                 "simulation_id": sim_id,
                 "computed": True,
-                "day": step.day,
-                "metrics": step.metrics,
-                "alerts": step.alerts,
-                "agent_feed": _agent_feed(step, zone_id),
-                "tier2_broadcast_count": len(step.tier2_broadcasts),
-                "tier3_decisions": step.tier3_decisions[:5],
+                "metrics": final_metrics,
+                "policy": policy_metadata,
+                "summary": summary_data,
             }
         )
 
-    score = _score_run(final_metrics, policy_metadata["magnitude"])
-    recommendations = _recommendations(final_metrics, score)
-    events.append(
-        {
-            "event": "sim_complete",
-            "simulation_id": sim_id,
-            "computed": True,
-            "metrics": final_metrics,
-            "policy": policy_metadata,
-            "summary": _summary(final_metrics, score, recommendations),
-        }
-    )
-    return events
+        # Write completed runs to SQLite DB
+        async with AsyncSessionLocal() as session:
+            db_run = await session.get(SimulationRun, sim_id)
+            if db_run:
+                db_run.status = "complete"
+                db_run.score = score
+                db_run.verdict = summary_data["verdict"]
+                db_run.metrics_history_json = json.dumps(metrics_history)
+                db_run.alerts_json = json.dumps(alerts)
+                db_run.agent_feed_json = json.dumps(agent_feed)
+                db_run.summary_json = json.dumps(summary_data)
+                db_run.causal_trace_json = json.dumps(getattr(engine, "causal_trace_log", {}))
+                await session.commit()
+
+        return events
+    except Exception as exc:
+        async with AsyncSessionLocal() as session:
+            db_run = await session.get(SimulationRun, sim_id)
+            if db_run:
+                db_run.status = "error"
+                await session.commit()
+        raise exc
+    finally:
+        _active_engines.pop(sim_id, None)
 
 
 @router.get("/cities")
@@ -333,17 +456,59 @@ async def list_cities():
     return {"cities": CITIES}
 
 
+@router.get("/simulations")
+async def list_simulations():
+    """List past completed runs from database."""
+    await init_db()
+    async with AsyncSessionLocal() as session:
+        statement = select(SimulationRun).order_by(desc(SimulationRun.created_at)).limit(30)
+        result = await session.execute(statement)
+        runs = result.scalars().all()
+        return {"simulations": [run.to_dict() for run in runs]}
+
+
 @router.get("/simulations/{simulation_id}")
 async def get_simulation(simulation_id: str):
+    # Try local cache
     simulation = _simulations.get(simulation_id)
-    if not simulation:
-        raise HTTPException(status_code=404, detail="Simulation not found")
-    return simulation
+    if simulation:
+        return simulation
+
+    # Query DB
+    await init_db()
+    async with AsyncSessionLocal() as session:
+        db_run = await session.get(SimulationRun, simulation_id)
+        if not db_run:
+            raise HTTPException(status_code=404, detail="Simulation not found")
+            
+        data = db_run.to_dict()
+        
+        # Format database record to mimic standard cached event output
+        metrics = data["metrics_history"][-1] if data["metrics_history"] else {}
+        policy_params, policy_meta = await _policy_params(data["policy_text"])
+        
+        return {
+            "event": "sim_complete",
+            "simulation_id": data["simulation_id"],
+            "computed": True,
+            "metrics": metrics,
+            "metrics_history": data["metrics_history"],
+            "policy": policy_meta,
+            "summary": data["summary"] or {},
+            "request": {
+                "city_id": data["city_id"],
+                "policy_text": data["policy_text"],
+                "time_horizon_days": data["time_horizon_days"],
+                "population_size": data["population_size"],
+                "seed": data["seed"],
+            }
+        }
 
 
 @router.post("/simulate")
 async def run_simulation(simulation_request: SimulationRequest, request: Request):
     _enforce_rate_limit(request)
+    await init_db()
     sim_id = str(uuid.uuid4())[:8]
     cache_key = _cache_key(simulation_request)
 
@@ -375,7 +540,24 @@ async def run_counterfactual(counterfactual: CounterfactualRequest, request: Req
     _enforce_rate_limit(request)
     base = _simulations.get(counterfactual.base_simulation_id)
     if not base:
+        # Check SQLite
+        await init_db()
+        async with AsyncSessionLocal() as session:
+            db_run = await session.get(SimulationRun, counterfactual.base_simulation_id)
+            if db_run:
+                base = {
+                    "request": {
+                        "city_id": db_run.city_id,
+                        "policy_text": db_run.policy_text,
+                        "time_horizon_days": db_run.time_horizon_days,
+                        "population_size": db_run.population_size,
+                        "seed": db_run.seed
+                    }
+                }
+    
+    if not base:
         raise HTTPException(status_code=404, detail="Base simulation not found")
+        
     base_request = base["request"]
     modified = SimulationRequest(
         **{
@@ -385,3 +567,43 @@ async def run_counterfactual(counterfactual: CounterfactualRequest, request: Req
         }
     )
     return await run_simulation(modified, request)
+
+
+@router.post("/simulations/{simulation_id}/inject-crisis")
+async def inject_crisis(simulation_id: str, crisis_req: CrisisRequest):
+    engine = _active_engines.get(simulation_id)
+    if not engine:
+        raise HTTPException(
+            status_code=404, 
+            detail="Active simulation not found or already completed."
+        )
+    
+    from backend.agents.redteam_agent import RedTeamAgent
+    red_agent = RedTeamAgent()
+    
+    # Get active city and construct parameters
+    city_id = engine.active_crisis_overrides.get("city_id", "DEL")
+    zone_id = CITY_PRIMARY_ZONES.get(city_id, "DEL_SHAHDARA")
+    
+    mock_state = {
+        "active_zones": [zone_id],
+        "zone_context": {
+            zone_id: {
+                "geography": {"elevation_category": "low"},
+                "commute_profile": {"suburban_rail_share": 0.3},
+                "tier1_agent_archetype_weights": {"student": 0.2, "exam_aspirant": 0.2}
+            }
+        }
+    }
+    
+    crisis_info = await red_agent.inject_crisis(crisis_req.crisis_type, mock_state)
+    
+    # Apply overriding values to engine parameters
+    overrides = {**crisis_info.modified_params, "crisis_type_name": crisis_req.crisis_type}
+    engine.active_crisis_overrides.update(overrides)
+    
+    return {
+        "success": True, 
+        "crisis": crisis_req.crisis_type, 
+        "affected_zones": crisis_info.affected_zones
+    }
