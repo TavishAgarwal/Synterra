@@ -10,3 +10,6 @@ scipy
 pytest
 httpx
 pytest-asyncio
+sqlalchemy
+aiosqlite
+greenlet
