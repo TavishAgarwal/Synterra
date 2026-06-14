@@ -1,0 +1,39 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: synterra-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    envVars:
+      # Optional: set these in the Render dashboard if you use real LLMs
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # We use SQLite by default for simple deployment. For production, add a database and update DATABASE_URL.
+      - key: DATABASE_URL
+        value: sqlite:///./synthetic_nation.db
+      - key: ALLOWED_ORIGINS
+        # Update this to your frontend's deployed URL once you know it
+        value: "*"
+
+  # Frontend Web Service
+  - type: web
+    name: synterra-frontend
+    env: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: VITE_API_BASE_URL
+        # This automatically uses the backend's Render URL
+        fromService:
+          type: web
+          name: synterra-backend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: VITE_MAPBOX_TOKEN
+        sync: false
+      - key: VITE_DEMO_MODE
+        value: "true"
+      - key: VITE_MAX_AGENTS
+        value: "10000"
